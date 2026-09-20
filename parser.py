@@ -4,46 +4,29 @@ from collections.abc import Sequence
 
 from Lexer import Token, TokenKind
 from ast_nodes import (
-    Block,
-    Expr,
-    FunctionDecl,
-    Node,
-    Parameter,
-    PrintItem,
-    Program,
-    SourceSpan,
-    Stmt,
-    StringLiteral,
-    TypeName,
+    Block, Expr, FunctionDecl, Node, Parameter, PrintItem, Program,
+    SourceSpan, Stmt, StringLiteral, TypeName, Assignment, CallExpr,
+    VarDecl, IfStmt, BinaryOperator, UnaryOperator, IdentifierExpr,
+    BinaryExpr, IntLiteral, PrintStmt, BoolLiteral, CallStmt, WhileStmt,
+    ReturnStmt,
 )
-
 
 TYPE_START = {TokenKind.KW_INT, TokenKind.KW_BOOL, TokenKind.KW_VOID}
 EXPRESSION_START = {
-    TokenKind.IDENTIFIER,
-    TokenKind.INT_LITERAL,
-    TokenKind.KW_FALSE,
-    TokenKind.KW_TRUE,
-    TokenKind.LEFT_PAREN,
-    TokenKind.LOGICAL_NOT,
+    TokenKind.IDENTIFIER, TokenKind.INT_LITERAL, TokenKind.KW_FALSE,
+    TokenKind.KW_TRUE, TokenKind.LEFT_PAREN, TokenKind.LOGICAL_NOT,
     TokenKind.MINUS,
 }
 STATEMENT_START = TYPE_START | {
-    TokenKind.IDENTIFIER,
-    TokenKind.KW_IF,
-    TokenKind.KW_WHILE,
-    TokenKind.KW_RETURN,
-    TokenKind.KW_PRINT,
-    TokenKind.LEFT_BRACE,
+    TokenKind.IDENTIFIER, TokenKind.KW_IF, TokenKind.KW_WHILE,
+    TokenKind.KW_RETURN, TokenKind.KW_PRINT, TokenKind.LEFT_BRACE,
 }
-
 
 TYPE_BY_TOKEN = {
     TokenKind.KW_INT: TypeName.INT,
     TokenKind.KW_BOOL: TypeName.BOOL,
     TokenKind.KW_VOID: TypeName.VOID,
 }
-
 
 class ParserError(Exception):
     def __init__(self, token: Token, expected: set[TokenKind]):
@@ -68,7 +51,6 @@ class ParserError(Exception):
             f"erro sintático em {self.line}:{self.column}: esperado {{{names}}}, "
             f"encontrado {self.token.kind.name} ({self.token.lexeme!r})"
         )
-
 
 class Parser:
     def __init__(self, tokens: Sequence[Token]):
@@ -109,10 +91,7 @@ class Parser:
     @staticmethod
     def _token_span(token: Token) -> SourceSpan:
         return SourceSpan(
-            token.line,
-            token.column,
-            token.line,
-            token.column + len(token.lexeme),
+            token.line, token.column, token.line, token.column + len(token.lexeme),
         )
 
     @staticmethod
@@ -136,7 +115,6 @@ class Parser:
     def parse(self) -> Program:
         return self.parse_program()
 
-    # program ::= function* EOF
     def parse_program(self) -> Program:
         start = self.peek()
         functions: list[FunctionDecl] = []
@@ -145,7 +123,6 @@ class Parser:
         eof = self.expect(TokenKind.EOF)
         return Program(functions, span=self._span(start, eof))
 
-    # function ::= type IDENTIFIER ... block
     def parse_function(self) -> FunctionDecl:
         start = self.peek()
         return_type = self.parse_type()
@@ -159,81 +136,68 @@ class Parser:
         self.expect(TokenKind.RIGHT_PAREN)
         body = self.parse_block()
         return FunctionDecl(
-            return_type,
-            name.lexeme,
-            parameters,
-            body,
-            span=self._span(start, body),
+            return_type, name.lexeme, parameters, body, span=self._span(start, body),
         )
 
-    # type ::= KW_INT | KW_BOOL | KW_VOID
     def parse_type(self) -> TypeName:
         token = self.expect(TYPE_START)
         return TYPE_BY_TOKEN[token.kind]
 
     def parse_parameter_list(self) -> list[Parameter]:
-        raise NotImplementedError("implemente parameter_list")
+       parameters = [self.parse_parameter()]
+       while self.match(TokenKind.COMMA):
+            parameters.append(self.parse_parameter())
+       return parameters
 
     def parse_parameter(self) -> Parameter:
-        raise NotImplementedError("implemente parameter")
+        start = self.peek()
+        param_type = self.parse_type()
+        name= self.expect(TokenKind.IDENTIFIER)
+        return Parameter(param_type, name.lexeme, span=self._span(start, name))
 
     def parse_block(self) -> Block:
-        raise NotImplementedError("implemente block")
+        start = self.expect(TokenKind.LEFT_BRACE)
+        statements = []
+        while not self.check(TokenKind.RIGHT_BRACE):
+            statements.append(self.parse_statement())
+        end= self.expect(TokenKind.RIGHT_BRACE)
+        return Block(statements, span=self._span(start, end))
 
     def parse_statement(self) -> Stmt:
         raise NotImplementedError("implemente statement")
-
     def parse_id_or_call_statement(self) -> Stmt:
         raise NotImplementedError("implemente id_or_call_statement")
-
     def parse_declaration(self) -> Stmt:
         raise NotImplementedError("implemente declaration")
-
     def parse_if_statement(self) -> Stmt:
         raise NotImplementedError("implemente if_statement")
-
     def parse_while_statement(self) -> Stmt:
         raise NotImplementedError("implemente while_statement")
-
     def parse_return_statement(self) -> Stmt:
         raise NotImplementedError("implemente return_statement")
-
     def parse_print_statement(self) -> Stmt:
         raise NotImplementedError("implemente print_statement")
-
     def parse_print_item(self) -> PrintItem:
         raise NotImplementedError("implemente print_item")
-
     def parse_string_literals(self) -> StringLiteral:
         raise NotImplementedError("implemente string_literals")
-
     def parse_expression(self) -> Expr:
         raise NotImplementedError("implemente expression")
-
     def parse_logical_or(self) -> Expr:
         raise NotImplementedError("implemente logical_or")
-
     def parse_logical_and(self) -> Expr:
         raise NotImplementedError("implemente logical_and")
-
     def parse_equality(self) -> Expr:
         raise NotImplementedError("implemente equality")
-
     def parse_relational(self) -> Expr:
         raise NotImplementedError("implemente relational")
-
     def parse_additive(self) -> Expr:
         raise NotImplementedError("implemente additive")
-
     def parse_multiplicative(self) -> Expr:
         raise NotImplementedError("implemente multiplicative")
-
     def parse_unary(self) -> Expr:
         raise NotImplementedError("implemente unary")
-
     def parse_primary(self) -> Expr:
         raise NotImplementedError("implemente primary")
-
     def parse_arguments(self) -> list[Expr]:
         raise NotImplementedError("implemente arguments")
-
