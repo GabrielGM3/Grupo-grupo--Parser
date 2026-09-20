@@ -80,9 +80,12 @@ class Lexer:
 
     def __init__(self, source: str):
         self.source = source
+
+        self.source = source
         self.pos = 0
         self.linha = 1
         self.coluna = 1
+
 
         self.keywords = {
             "int": TokenKind.KW_INT, "bool": TokenKind.KW_BOOL,
@@ -91,7 +94,6 @@ class Lexer:
             "else": TokenKind.KW_ELSE, "while": TokenKind.KW_WHILE,
             "return": TokenKind.KW_RETURN, "print": TokenKind.KW_PRINT
         }
-
     def acabou_string(self):
         return self.pos >= len(self.source)
 
@@ -126,6 +128,10 @@ class Lexer:
 
         return Token(tipo, lexema, valor, linha, coluna)
 
+
+
+
+
     def numero(self, primeiro_caractere:str,linha: int, coluna:int) -> Token:
         lexema=primeiro_caractere
         while not self.acabou_string() and self.verificar_caractere().isdigit():
@@ -133,8 +139,53 @@ class Lexer:
 
         return Token(TokenKind.INT_LITERAL, lexema, int(lexema), linha, coluna)
 
+    def _string(self,linha: int, coluna: int) -> Token:
+        lexema= '"'
+        caracteres_valor=[]
+
+        while not self.acabou_string() and self.verificar_caractere() != '"':
+
+            coluna_char= self.coluna
+            char=self.avançar()
+            lexema +=char
+
+            if char == '\\':
+                if not self.acabou_string():
+                    proximo_caractere= self.avançar()
+                    lexema += proximo_caractere
+
+                    if proximo_caractere == 'n':
+                        caracteres_valor.append('\n')
+                    elif proximo_caractere  == 't':
+                        caracteres_valor.append('\t')
+                    elif proximo_caractere  == '"':
+                        caracteres_valor.append('"')
+                    elif proximo_caractere  == '"':
+                        caracteres_valor.append('"')
+                    elif proximo_caractere  == '\\':
+                        caracteres_valor.append('\\')
+                    else:
+                        raise LexerError(
+                            f"Sequência de escape inválida: \\{proximo_caractere}",
+                            self.linha,
+                            coluna_char
+                        )
+
+                else:
+                    raise LexerError("String não finalizada após barra invertida", linha, coluna)
+            else:
+                if char == '\n':
+                    raise LexerError("Quebra de linha literal não permitida em strings", self.linha - 1, coluna_char)
+                caracteres_valor.append(char)
+        if self.acabou_string():
+            raise LexerError("String não fechada", linha, coluna)
+        lexema += self.avançar()
+        valor= "".join(caracteres_valor)
+        return Token(TokenKind.STRING_LITERAL,lexema,valor,linha,coluna)
+
     def tokens(self) -> Iterator[Token]:
         """Produza todos os tokens significativos e um único EOF ao final."""
+
         while not self.acabou_string():
             char = self.verificar_caractere()
 
@@ -144,6 +195,7 @@ class Lexer:
 
             linha_começo= self.linha
             coluna_começo= self.coluna
+
             c= self.avançar()
 
             if (c.isascii() and c.isalpha()) or c== '_':
@@ -156,6 +208,7 @@ class Lexer:
                     yield Token(TokenKind.EQUAL_EQUAL, "==",None, linha_começo, coluna_começo)
                 else:
                     yield Token(TokenKind.ASSIGN , "=", None, linha_começo, coluna_começo)
+
             elif c == ';':
                 yield Token(TokenKind.SEMICOLON, ";", None, linha_começo, coluna_começo)
             elif c == '(':
@@ -168,48 +221,86 @@ class Lexer:
                 yield Token(TokenKind.RIGHT_BRACE, "}", None, linha_começo, coluna_começo)
             elif c == ',':
                 yield Token(TokenKind.COMMA, ",", None, linha_começo, coluna_começo)
+            elif c == '"':
+                yield self._string(linha_começo,coluna_começo)
             elif c == '-':
                 yield Token(TokenKind.MINUS, "-", None, linha_começo,coluna_começo)
             elif c == '+':
                 yield Token(TokenKind.PLUS, "+", None, linha_começo,coluna_começo)
             elif c == '*':
                 yield Token(TokenKind.STAR, "*", None, linha_começo,coluna_começo)
+            elif c == '/':
+                if not self.acabou_string() and self.verificar_caractere()== '/':
+                    self.avançar()
+                    while not self.acabou_string() and self.verificar_caractere()!= '\n':
+                        self.avançar()
+                    continue
+
+                elif not self.acabou_string() and self.verificar_caractere()== '*':
+                    self.avançar()
+                    while not self.acabou_string():
+                        char_atual= self.avançar()
+                        if char_atual == '*' and not self.acabou_string() and self.verificar_caractere() == '/':
+                            self.avançar()
+
+                            break
+                    else:
+
+                        raise LexerError("Comentário de bloco não fechado", linha_começo, coluna_começo)
+                    continue
+                else:
+                    yield Token(TokenKind.SLASH, "/", None, linha_começo,coluna_começo)
+
             elif c == '%':
                 yield Token(TokenKind.PERCENT, "%", None, linha_começo,coluna_começo)
+
             elif c== '<':
+
                 if not self.acabou_string() and self.verificar_caractere()== '=':
                     self.avançar()
                     yield Token(TokenKind.LESS_EQUAL,"<=", None, linha_começo,coluna_começo)
                 else:
                     yield Token(TokenKind.LESS, "<", None, linha_começo, coluna_começo)
             elif c == '>':
+
                 if not self.acabou_string() and self.verificar_caractere() == '=':
                     self.avançar()
                     yield Token(TokenKind.GREATER_EQUAL, ">=", None, linha_começo, coluna_começo)
                 else:
                     yield Token(TokenKind.GREATER , ">", None, linha_começo, coluna_começo)
+
             elif c == '!':
+
                 if not self.acabou_string() and self.verificar_caractere() == '=':
                     self.avançar()
                     yield Token(TokenKind.NOT_EQUAL, "!=", None, linha_começo, coluna_começo)
                 else:
                     yield Token(TokenKind.LOGICAL_NOT , "!", None, linha_começo, coluna_começo)
+
             elif c == '&':
+
                 if not self.acabou_string() and self.verificar_caractere() == '&':
                     self.avançar()
                     yield Token(TokenKind.LOGICAL_AND, "&&", None, linha_começo, coluna_começo)
                 else:
                     raise LexerError(f"Caractere invalido: {c}", linha_começo, coluna_começo)
             elif c == '|':
+
                 if not self.acabou_string() and self.verificar_caractere() == '|':
                     self.avançar()
                     yield Token(TokenKind.LOGICAL_OR, "||", None, linha_começo, coluna_começo)
                 else:
                     raise LexerError(f"Caractere invalido: {c}", linha_começo, coluna_começo)
+
             else:
                 raise  LexerError(f"Caractere invalido: {c}", linha_começo, coluna_começo)
 
         yield Token(TokenKind.EOF,"", None, self.linha, self.coluna)
+
+
+
+
+
 
     def scan(self) -> list[Token]:
         return list(self.tokens())
