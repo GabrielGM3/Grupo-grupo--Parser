@@ -153,7 +153,11 @@ class Parser:
         start = self.peek()
         param_type = self.parse_type()
         name = self.expect(TokenKind.IDENTIFIER)
-        return Parameter(param_type, name.lexeme, span=self._span(start, name))
+        return Parameter(
+            param_type,
+            name.lexeme,
+            span=self._span(start, name),
+        )
 
     def parse_block(self) -> Block:
         start = self.expect(TokenKind.LEFT_BRACE)
@@ -246,6 +250,7 @@ class Parser:
         return ReturnStmt(value, span=self._span(start, end))
 
     def parse_print_statement(self) -> Stmt:
+
         start = self.expect(TokenKind.KW_PRINT)
         self.expect(TokenKind.LEFT_PAREN)
         items = [self.parse_print_item()]
@@ -273,19 +278,52 @@ class Parser:
         return StringLiteral(value, span=self._span(start, end))
 
     def parse_expression(self) -> Expr:
-        return self.parse_additive()
+        return self.parse_logical_or()
 
     def parse_logical_or(self) -> Expr:
-        raise NotImplementedError("implemente logical_or")
+        expr = self.parse_logical_and()
+        while self.match(TokenKind.LOGICAL_OR):
+            right = self.parse_logical_and()
+            expr = BinaryExpr(BinaryOperator.LOGICAL_OR, expr, right, span=self._span(expr, right))
+
+        return expr
 
     def parse_logical_and(self) -> Expr:
-        raise NotImplementedError("implemente logical_and")
+        expr = self.parse_equality()
+        while self.match(TokenKind.LOGICAL_AND):
+            right = self.parse_logical_equality()
+            expr = BinaryExpr(BinaryOperator.LOGICAL_AND, expr, right, span=self._span(expr, right))
+
+        return expr
 
     def parse_equality(self) -> Expr:
-        raise NotImplementedError("implemente equality")
+        expr = self.parse_relational()
+        while True:
+            op_token = self.match(TokenKind.EQUAL_EQUAL, TokenKind.NOT_EQUAL)
+            if not op_token:
+                break
+            op = BinaryOperator.EQUAL if op_token.kind == TokenKind.EQUAL_EQUAL else BinaryOperator.NOT_EQUAL
+            right = self.parse_relational()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+
+        return expr
 
     def parse_relational(self) -> Expr:
-        raise NotImplementedError("implemente relational")
+        expr = self.parse_additive()
+        while True:
+            op_token = self.match(TokenKind.LESS, TokenKind.LESS_EQUAL, TokenKind.GREATER, TokenKind.GREATER_EQUAL)
+            if not op_token:
+                break
+            op_map = {
+                TokenKind.LESS: BinaryOperator.LESS,
+                TokenKind.GREATER: BinaryOperator.GREATER,
+                TokenKind.LESS_EQUAL: BinaryOperator.LESS_EQUAL,
+                TokenKind.GREATER_EQUAL: BinaryOperator.GREATER_EQUAL
+
+            }
+            right = self.parse_additive()
+            expr = BinaryExpr(op_map[op_token.kind], expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_additive(self) -> Expr:
         expr = self.parse_multiplicative()
@@ -309,6 +347,7 @@ class Parser:
                 TokenKind.STAR: BinaryOperator.MULTIPLY,
                 TokenKind.SLASH: BinaryOperator.DIVIDE,
                 TokenKind.PERCENT: BinaryOperator.REMAINDER
+
             }
             right = self.parse_unary()
             expr = BinaryExpr(op_map[op_token.kind], expr, right, span=self._span(expr, right))
