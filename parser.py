@@ -164,17 +164,73 @@ class Parser:
         return Block(statements, span=self._span(start, end))
 
     def parse_statement(self) -> Stmt:
-        raise NotImplementedError("implemente statement")
+        if self.check(TokenKind.LEFT_BRACE):
+            return self.parse_block()
+        if self.peek().kind in TYPE_START:
+            return self.parse_declaration()
+        if self.check(TokenKind.KW_IF):
+            return self.parse_if_statement()
+        if self.check(TokenKind.KW_WHILE):
+            return self.parse_while_statement()
+        if self.check(TokenKind.KW_RETURN):
+            return self.parse_return_statement()
+        if self.check(TokenKind.KW_PRINT):
+            return self.parse_print_statement()
+        if self.check(TokenKind.IDENTIFIER):
+            return self.parse_id_or_call_statement()
+        
+        raise ParserError(self.peek(), STATEMENT_START)
+        
     def parse_id_or_call_statement(self) -> Stmt:
         raise NotImplementedError("implemente id_or_call_statement")
+    
     def parse_declaration(self) -> Stmt:
-        raise NotImplementedError("implemente declaration")
+        start = self.peek()
+        var_type = self.parse_type()
+        name= self.expect(TokenKind.IDENTIFIER)
+
+        initializer=None
+        if self.match(TokenKind.ASSIGN):
+            initializer = self.parse_expression()
+
+        end = self.expect(TokenKind.SEMICOLON)
+        return VarDecl(var_type, name.lexeme, initializer, span=self._span(start, end))
+    
     def parse_if_statement(self) -> Stmt:
-        raise NotImplementedError("implemente if_statement")
+        start= self.expect(TokenKind.KW_IF)
+        self.expect(TokenKind.LEFT_PAREN)
+        condition = self.parse_expression()
+        self.expect(TokenKind.RIGHT_PAREN)
+        then_block = self.parse_block()
+
+        else_block= None
+        end = then_block
+
+        if self.match(TokenKind.KW_ELSE):
+            else_block = self.parse_block()
+            end = else_block
+
+        return IfStmt(condition, then_block, else_block, span=self._span(start, end))
+    
     def parse_while_statement(self) -> Stmt:
-        raise NotImplementedError("implemente while_statement")
+        start = self.expect(TokenKind.KW_WHILE)
+        self.expect(TokenKind.LEFT_PAREN)
+        condition = self.parse_expression()
+        self.expect(TokenKind.RIGHT_PAREN)
+        body = self.parse_block()
+
+        return WhileStmt(condition, body, span=self._span(start, body))
+    
     def parse_return_statement(self) -> Stmt:
-        raise NotImplementedError("implemente return_statement")
+        start = self.expect(TokenKind.KW_RETURN)
+        value= None
+        if not self.check(TokenKind.SEMICOLON):
+            value = self.parse_expression()
+
+        end= self.expect(TokenKind.SEMICOLON)
+
+        return ReturnStmt(value, span=self._span(start, end))
+    
     def parse_print_statement(self) -> Stmt:
         raise NotImplementedError("implemente print_statement")
     def parse_print_item(self) -> PrintItem:
