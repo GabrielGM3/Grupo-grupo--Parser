@@ -178,12 +178,26 @@ class Parser:
             return self.parse_print_statement()
         if self.check(TokenKind.IDENTIFIER):
             return self.parse_id_or_call_statement()
-        
+
         raise ParserError(self.peek(), STATEMENT_START)
-        
+
     def parse_id_or_call_statement(self) -> Stmt:
-        raise NotImplementedError("implemente id_or_call_statement")
-    
+        start = self.expect(TokenKind.IDENTIFIER)
+
+        if self.match(TokenKind.ASSIGN):
+            value = self.parse_expression()
+            end = self.expect(TokenKind.SEMICOLON)
+            target = IdentifierExpr(start.lexeme, span=self._span(start, end))
+            return Assignment(target, value, span=self._span(start, end))
+        elif self.match(TokenKind.LEFT_PAREN):
+            args = self.parse_arguments()
+            right_paren = self.expect(TokenKind.RIGHT_PAREN)
+            end = self.expect(TokenKind.SEMICOLON)
+            call_expr= CallExpr(start.lexeme,args,span=self._span(start, right_paren))
+            return CallStmt(call_expr, span=self._span(start, end))
+
+        raise ParserError(self.peek(),{TokenKind.ASSIGN, TokenKind.LEFT_PAREN})
+
     def parse_declaration(self) -> Stmt:
         start = self.peek()
         var_type = self.parse_type()
@@ -195,7 +209,7 @@ class Parser:
 
         end = self.expect(TokenKind.SEMICOLON)
         return VarDecl(var_type, name.lexeme, initializer, span=self._span(start, end))
-    
+
     def parse_if_statement(self) -> Stmt:
         start= self.expect(TokenKind.KW_IF)
         self.expect(TokenKind.LEFT_PAREN)
@@ -211,7 +225,7 @@ class Parser:
             end = else_block
 
         return IfStmt(condition, then_block, else_block, span=self._span(start, end))
-    
+
     def parse_while_statement(self) -> Stmt:
         start = self.expect(TokenKind.KW_WHILE)
         self.expect(TokenKind.LEFT_PAREN)
@@ -220,7 +234,7 @@ class Parser:
         body = self.parse_block()
 
         return WhileStmt(condition, body, span=self._span(start, body))
-    
+
     def parse_return_statement(self) -> Stmt:
         start = self.expect(TokenKind.KW_RETURN)
         value= None
@@ -230,13 +244,34 @@ class Parser:
         end= self.expect(TokenKind.SEMICOLON)
 
         return ReturnStmt(value, span=self._span(start, end))
-    
+
     def parse_print_statement(self) -> Stmt:
-        raise NotImplementedError("implemente print_statement")
+        start = self.expect(TokenKind.KW_PRINT)
+        self.expect(TokenKind.LEFT_PAREN)
+        items = [self.parse_print_item()]
+        while self.match(TokenKind.COMMA):
+            items.append(self.parse_print_item())
+        self.expect(TokenKind.RIGHT_PAREN)
+        end = self.expect(TokenKind.SEMICOLON)
+        return PrintStmt(items, span=self._span(start, end))
+
     def parse_print_item(self) -> PrintItem:
-        raise NotImplementedError("implemente print_item")
+        if self.check(TokenKind.STRING_LITERAL):
+            return self.parse_string_literals()
+        return self.parse_expression()
+
     def parse_string_literals(self) -> StringLiteral:
-        raise NotImplementedError("implemente string_literals")
+        start = self.expect(TokenKind.STRING_LITERAL)
+        value = start.lexeme[1:-1]
+        end = start
+
+        while self.check(TokenKind.STRING_LITERAL):
+            token = self.advance()
+            value += token.lexeme[1:-1]
+            end = token
+
+        return StringLiteral(value, span=self._span(start, end))
+
     def parse_expression(self) -> Expr:
         raise NotImplementedError("implemente expression")
     def parse_logical_or(self) -> Expr:
