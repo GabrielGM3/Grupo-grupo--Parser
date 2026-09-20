@@ -144,15 +144,15 @@ class Parser:
         return TYPE_BY_TOKEN[token.kind]
 
     def parse_parameter_list(self) -> list[Parameter]:
-       parameters = [self.parse_parameter()]
-       while self.match(TokenKind.COMMA):
+        parameters = [self.parse_parameter()]
+        while self.match(TokenKind.COMMA):
             parameters.append(self.parse_parameter())
-       return parameters
+        return parameters
 
     def parse_parameter(self) -> Parameter:
         start = self.peek()
         param_type = self.parse_type()
-        name= self.expect(TokenKind.IDENTIFIER)
+        name = self.expect(TokenKind.IDENTIFIER)
         return Parameter(param_type, name.lexeme, span=self._span(start, name))
 
     def parse_block(self) -> Block:
@@ -160,7 +160,7 @@ class Parser:
         statements = []
         while not self.check(TokenKind.RIGHT_BRACE):
             statements.append(self.parse_statement())
-        end= self.expect(TokenKind.RIGHT_BRACE)
+        end = self.expect(TokenKind.RIGHT_BRACE)
         return Block(statements, span=self._span(start, end))
 
     def parse_statement(self) -> Stmt:
@@ -193,17 +193,17 @@ class Parser:
             args = self.parse_arguments()
             right_paren = self.expect(TokenKind.RIGHT_PAREN)
             end = self.expect(TokenKind.SEMICOLON)
-            call_expr= CallExpr(start.lexeme,args,span=self._span(start, right_paren))
+            call_expr = CallExpr(start.lexeme, args, span=self._span(start, right_paren))
             return CallStmt(call_expr, span=self._span(start, end))
 
-        raise ParserError(self.peek(),{TokenKind.ASSIGN, TokenKind.LEFT_PAREN})
+        raise ParserError(self.peek(), {TokenKind.ASSIGN, TokenKind.LEFT_PAREN})
 
     def parse_declaration(self) -> Stmt:
         start = self.peek()
         var_type = self.parse_type()
-        name= self.expect(TokenKind.IDENTIFIER)
+        name = self.expect(TokenKind.IDENTIFIER)
 
-        initializer=None
+        initializer = None
         if self.match(TokenKind.ASSIGN):
             initializer = self.parse_expression()
 
@@ -211,13 +211,13 @@ class Parser:
         return VarDecl(var_type, name.lexeme, initializer, span=self._span(start, end))
 
     def parse_if_statement(self) -> Stmt:
-        start= self.expect(TokenKind.KW_IF)
+        start = self.expect(TokenKind.KW_IF)
         self.expect(TokenKind.LEFT_PAREN)
         condition = self.parse_expression()
         self.expect(TokenKind.RIGHT_PAREN)
         then_block = self.parse_block()
 
-        else_block= None
+        else_block = None
         end = then_block
 
         if self.match(TokenKind.KW_ELSE):
@@ -237,11 +237,11 @@ class Parser:
 
     def parse_return_statement(self) -> Stmt:
         start = self.expect(TokenKind.KW_RETURN)
-        value= None
+        value = None
         if not self.check(TokenKind.SEMICOLON):
             value = self.parse_expression()
 
-        end= self.expect(TokenKind.SEMICOLON)
+        end = self.expect(TokenKind.SEMICOLON)
 
         return ReturnStmt(value, span=self._span(start, end))
 
@@ -273,7 +273,7 @@ class Parser:
         return StringLiteral(value, span=self._span(start, end))
 
     def parse_expression(self) -> Expr:
-        return self.parse_unary()
+        return self.parse_additive()
 
     def parse_logical_or(self) -> Expr:
         raise NotImplementedError("implemente logical_or")
@@ -288,10 +288,31 @@ class Parser:
         raise NotImplementedError("implemente relational")
 
     def parse_additive(self) -> Expr:
-        raise NotImplementedError("implemente additive")
+        expr = self.parse_multiplicative()
+        while True:
+            op_token = self.match(TokenKind.PLUS, TokenKind.MINUS)
+            if not op_token:
+                break
+            op = BinaryOperator.ADD if op_token.kind == TokenKind.PLUS else BinaryOperator.SUBTRACT
+            right = self.parse_multiplicative()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+
+        return expr
 
     def parse_multiplicative(self) -> Expr:
-        raise NotImplementedError("implemente multiplicative")
+        expr = self.parse_unary()
+        while True:
+            op_token = self.match(TokenKind.STAR, TokenKind.SLASH, TokenKind.PERCENT)
+            if not op_token:
+                break
+            op_map = {
+                TokenKind.STAR: BinaryOperator.MULTIPLY,
+                TokenKind.SLASH: BinaryOperator.DIVIDE,
+                TokenKind.PERCENT: BinaryOperator.REMAINDER
+            }
+            right = self.parse_unary()
+            expr = BinaryExpr(op_map[op_token.kind], expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_unary(self) -> Expr:
         op_token = self.match(TokenKind.MINUS, TokenKind.LOGICAL_NOT)
@@ -323,7 +344,7 @@ class Parser:
             expr = self.parse_expression()
             end = self.expect(TokenKind.RIGHT_PAREN)
 
-            expr.span= self._span(token,end)
+            expr.span = self._span(token, end)
             return expr
         raise ParserError(token, EXPRESSION_START)
 
