@@ -6,7 +6,7 @@ from Lexer import Token, TokenKind
 from ast_nodes import (
     Block, Expr, FunctionDecl, Node, Parameter, PrintItem, Program,
     SourceSpan, Stmt, StringLiteral, TypeName, Assignment, CallExpr,
-    VarDecl, IfStmt, BinaryOperator, UnaryOperator, IdentifierExpr,
+    VarDecl, IfStmt, BinaryOperator, UnaryOperator, UnaryExpr, IdentifierExpr,
     BinaryExpr, IntLiteral, PrintStmt, BoolLiteral, CallStmt, WhileStmt,
     ReturnStmt,
 )
@@ -273,22 +273,64 @@ class Parser:
         return StringLiteral(value, span=self._span(start, end))
 
     def parse_expression(self) -> Expr:
-        raise NotImplementedError("implemente expression")
+        return self.parse_unary()
+
     def parse_logical_or(self) -> Expr:
         raise NotImplementedError("implemente logical_or")
+
     def parse_logical_and(self) -> Expr:
         raise NotImplementedError("implemente logical_and")
+
     def parse_equality(self) -> Expr:
         raise NotImplementedError("implemente equality")
+
     def parse_relational(self) -> Expr:
         raise NotImplementedError("implemente relational")
+
     def parse_additive(self) -> Expr:
         raise NotImplementedError("implemente additive")
+
     def parse_multiplicative(self) -> Expr:
         raise NotImplementedError("implemente multiplicative")
+
     def parse_unary(self) -> Expr:
-        raise NotImplementedError("implemente unary")
+        op_token = self.match(TokenKind.MINUS, TokenKind.LOGICAL_NOT)
+        if op_token:
+            op = UnaryOperator.NEGATE if op_token.kind == TokenKind.MINUS else UnaryOperator.NOT
+            operand = self.parse_unary()
+            return UnaryExpr(op, operand, span=self._span(op_token, operand))
+        return self.parse_primary()
+
     def parse_primary(self) -> Expr:
-        raise NotImplementedError("implemente primary")
+        token = self.advance()
+
+        if token.kind == TokenKind.INT_LITERAL:
+            return IntLiteral(int(token.lexeme), span=self._token_span(token))
+
+        if token.kind in (TokenKind.KW_TRUE, TokenKind.KW_FALSE):
+            if token.kind == TokenKind.KW_TRUE:
+                return BoolLiteral(True, span=self._token_span(token))
+            else:
+                return BoolLiteral(False, span=self._token_span(token))
+
+        if token.kind == TokenKind.IDENTIFIER:
+            if self.match(TokenKind.LEFT_PAREN):
+                args = self.parse_arguments()
+                right_paren = self.expect(TokenKind.RIGHT_PAREN)
+                return CallExpr(token.lexeme, args, span=self._span(token, right_paren))
+            return IdentifierExpr(token.lexeme, span=self._token_span(token))
+        if token.kind == TokenKind.LEFT_PAREN:
+            expr = self.parse_expression()
+            end = self.expect(TokenKind.RIGHT_PAREN)
+
+            expr.span= self._span(token,end)
+            return expr
+        raise ParserError(token, EXPRESSION_START)
+
     def parse_arguments(self) -> list[Expr]:
-        raise NotImplementedError("implemente arguments")
+        args = []
+        if self.peek().kind in EXPRESSION_START:
+            args.append(self.parse_expression())
+            while self.match(TokenKind.COMMA):
+                args.append(self.parse_expression())
+        return args
